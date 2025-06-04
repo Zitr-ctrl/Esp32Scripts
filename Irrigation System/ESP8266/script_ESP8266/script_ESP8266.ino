@@ -45,8 +45,13 @@ void loop() {
   int humedadValor = analogRead(pinHumedad);
   int humedadPct = map(humedadValor, 1023, 300, 0, 100); // Ajusta si es necesario
 
-  // Construir mensaje
-  String mensaje = "Humedad: " + String(humedadPct) + "%";
+  // Construir mensaje en el formato: sensor_id:valor:unidad
+  String sensor_id = "1";
+  String valor = String(humedadPct);
+  String unidad = "%";
+  String mensaje = sensor_id + ":" + valor + ":" + unidad;
+
+  // Comando AT para enviar por LoRa
   String comando = "AT+SEND=2," + String(mensaje.length()) + "," + mensaje;
 
   // Enviar por LoRa
@@ -58,8 +63,7 @@ void loop() {
   lcd.setCursor(0, 0);
   lcd.print("Humedad suelo:");
   lcd.setCursor(0, 1);
-  lcd.print(humedadPct);
-  lcd.print(" %");
+  lcd.print(valor + " " + unidad);
 
   lcd.setCursor(0, 2);
   lcd.print("TX LoRa OK -> ESP32");

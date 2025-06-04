@@ -1,4 +1,4 @@
-ESP32:
+
 #include <WiFi.h>
 #include <HTTPClient.h>
 
@@ -37,39 +37,60 @@ void setup() {
 
 void loop() {
   if (LoRaSerial.available()) {
-    String mensaje = LoRaSerial.readStringUntil('\n');
-    Serial.println("Mensaje recibido: " + mensaje);
+    String linea = LoRaSerial.readStringUntil('\n');
+    linea.trim(); // Elimina saltos de línea y espacios
 
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.begin("http://192.168.100.8/api/insertar_lectura");  // Cambia a la URL de tu API
+    Serial.println("Mensaje recibido: " + linea);
 
-      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    // Verifica si es una línea con datos reales
+    if (linea.startsWith("+RCV=")) {
+      // Formato esperado: +RCV=1,6,1:91:%,-26,11
+      int primerComa = linea.indexOf(',');               // después de +RCV=
+      int segundoComa = linea.indexOf(',', primerComa + 1);
+      int tercerComa = linea.indexOf(',', segundoComa + 1);
 
-      // Supongamos que el mensaje tiene formato: "sensor_id:valor:unidad"
-      // Ejemplo: "1:55.3:%"
-      int separator1 = mensaje.indexOf(':');
-      int separator2 = mensaje.indexOf(':', separator1 + 1);
-      if (separator1 > 0 && separator2 > separator1) {
-        String sensor_id = mensaje.substring(0, separator1);
-        String valor = mensaje.substring(separator1 + 1, separator2);
-        String unidad = mensaje.substring(separator2 + 1);
+      if (segundoComa != -1 && tercerComa != -1) {
+        String payload = linea.substring(segundoComa + 1, tercerComa);
+        payload = linea.substring(segundoComa + 1, tercerComa);
+        payload.trim(); // Esto será algo como "1:91:%"
 
-        String postData = "sensor_id=" + sensor_id + "&valor=" + valor + "&unidad=" + unidad;
-        int httpResponseCode = http.POST(postData);
+        Serial.println("Payload limpio: " + payload);
 
-        if (httpResponseCode > 0) {
-          String response = http.getString();
-          Serial.println("Respuesta servidor: " + response);
+        int sep1 = payload.indexOf(':');
+        int sep2 = payload.indexOf(':', sep1 + 1);
+
+        if (sep1 > 0 && sep2 > sep1) {
+          String sensor_id = payload.substring(0, sep1);
+          String valor = payload.substring(sep1 + 1, sep2);
+          String unidad = payload.substring(sep2 + 1);
+
+          String postData = "sensor_id=" + sensor_id + "&valor=" + valor + "&unidad=" + unidad;
+
+          if (WiFi.status() == WL_CONNECTED) {
+            HTTPClient http;
+            http.begin("http://192.168.100.8:3000/api/insertar_lectura");
+            http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            int httpResponseCode = http.POST(postData);
+
+            if (httpResponseCode > 0) {
+              String response = http.getString();
+              Serial.println("Respuesta servidor: " + response);
+            } else {
+              Serial.println("Error en POST: " + String(httpResponseCode));
+            }
+
+            http.end();
+          } else {
+            Serial.println("WiFi no conectado.");
+          }
         } else {
-          Serial.println("Error en POST: " + String(httpResponseCode));
+          Serial.println("Formato inválido en payload: " + payload);
         }
-      } else {
-        Serial.println("Formato de mensaje incorrecto.");
       }
-      http.end();
     } else {
-      Serial.println("WiFi no conectado.");
+      Serial.println("Mensaje de control ignorado: " + linea);
     }
   }
 }
+
